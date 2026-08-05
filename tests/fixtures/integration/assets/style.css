@@ -1,0 +1,21 @@
+body {
+    color: #172033;
+    font-family: "Segoe UI", sans-serif;
+    line-height: 1.5;
+}
+
+header {
+    align-items: center;
+    border-bottom: 3px solid #5865f2;
+    display: flex;
+    gap: 16px;
+}
+
+header img {
+    height: 64px;
+    width: 64px;
+}
+
+.second-page {
+    break-before: page;
+}

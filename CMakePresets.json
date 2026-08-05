@@ -1,0 +1,50 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 22,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "qt-6.11.1",
+            "displayName": "Qt 6.11.1 - MSVC 2022 x64",
+            "description": "Configure QuteConvert with the installed Qt 6.11.1 MSVC kit.",
+            "generator": "Visual Studio 18 2026",
+            "architecture": "x64",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_PREFIX_PATH": {
+                    "type": "PATH",
+                    "value": "C:/Qt/6.11.1/msvc2022_64"
+                },
+                "BUILD_TESTING": true
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "qt-6.11.1-debug",
+            "displayName": "Build Debug",
+            "configurePreset": "qt-6.11.1",
+            "configuration": "Debug"
+        },
+        {
+            "name": "qt-6.11.1-release",
+            "displayName": "Build Release",
+            "configurePreset": "qt-6.11.1",
+            "configuration": "Release"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "qt-6.11.1-debug",
+            "displayName": "Test Debug",
+            "configurePreset": "qt-6.11.1",
+            "configuration": "Debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        }
+    ]
+}
