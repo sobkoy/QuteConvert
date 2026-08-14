@@ -10,26 +10,26 @@
 
 namespace {
 
-void createFile(const QString& path) {
+void CreateFile(const QString& path) {
   QFile file(path);
   ASSERT_TRUE(file.open(QIODevice::WriteOnly));
   file.write("test");
 }
 
 TEST(FileDiscovery, FindsHtmlFilesNonRecursivelyInNaturalOrder) {
-  QTemporaryDir temporaryDirectory;
-  ASSERT_TRUE(temporaryDirectory.isValid());
-  QDir directory(temporaryDirectory.path());
+  QTemporaryDir temporary_directory;
+  ASSERT_TRUE(temporary_directory.isValid());
+  QDir directory(temporary_directory.path());
 
-  createFile(directory.filePath(QStringLiteral("page10.html")));
-  createFile(directory.filePath(QStringLiteral("page2.HTML")));
-  createFile(directory.filePath(QStringLiteral("notes.txt")));
+  CreateFile(directory.filePath(QStringLiteral("page10.html")));
+  CreateFile(directory.filePath(QStringLiteral("page2.HTML")));
+  CreateFile(directory.filePath(QStringLiteral("notes.txt")));
   ASSERT_TRUE(directory.mkpath(QStringLiteral("images")));
-  createFile(directory.filePath(QStringLiteral("images/hidden.html")));
+  CreateFile(directory.filePath(QStringLiteral("images/hidden.html")));
 
   QString error;
-  const QStringList files = quteconvert::FileDiscovery::findHtmlFiles(
-      temporaryDirectory.path(), &error);
+  const QStringList files = quteconvert::FileDiscovery::FindHtmlFiles(
+      temporary_directory.path(), &error);
 
   EXPECT_TRUE(error.isEmpty());
   ASSERT_EQ(files.size(), 2);
@@ -39,7 +39,7 @@ TEST(FileDiscovery, FindsHtmlFilesNonRecursivelyInNaturalOrder) {
 
 TEST(FileDiscovery, ReportsMissingDirectory) {
   QString error;
-  const QStringList files = quteconvert::FileDiscovery::findHtmlFiles(
+  const QStringList files = quteconvert::FileDiscovery::FindHtmlFiles(
       QStringLiteral("Z:/this/directory/should/not/exist"), &error);
 
   EXPECT_TRUE(files.isEmpty());
@@ -47,7 +47,7 @@ TEST(FileDiscovery, ReportsMissingDirectory) {
 }
 
 TEST(FileDiscovery, PreservesCompleteInputBaseName) {
-  const QString output = quteconvert::FileDiscovery::outputPathFor(
+  const QString output = quteconvert::FileDiscovery::OutputPathFor(
       QStringLiteral("C:/input/report.final.html"),
       QStringLiteral("C:/output"));
 
@@ -55,18 +55,18 @@ TEST(FileDiscovery, PreservesCompleteInputBaseName) {
 }
 
 TEST(FileDiscovery, AddsSuffixForExistingOrReservedOutputs) {
-  QTemporaryDir temporaryDirectory;
-  ASSERT_TRUE(temporaryDirectory.isValid());
-  QDir directory(temporaryDirectory.path());
+  QTemporaryDir temporary_directory;
+  ASSERT_TRUE(temporary_directory.isValid());
+  QDir directory(temporary_directory.path());
   const QString desired = directory.filePath(QStringLiteral("report.pdf"));
-  createFile(desired);
+  CreateFile(desired);
 
-  const QString second = quteconvert::FileDiscovery::uniqueOutputPath(desired);
+  const QString second = quteconvert::FileDiscovery::UniqueOutputPath(desired);
   EXPECT_EQ(QFileInfo(second).fileName(), QStringLiteral("report (2).pdf"));
 
   const QSet<QString> reserved{QFileInfo(second).absoluteFilePath()};
   const QString third =
-      quteconvert::FileDiscovery::uniqueOutputPath(desired, reserved);
+      quteconvert::FileDiscovery::UniqueOutputPath(desired, reserved);
   EXPECT_EQ(QFileInfo(third).fileName(), QStringLiteral("report (3).pdf"));
 }
 

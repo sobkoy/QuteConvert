@@ -15,36 +15,36 @@ class ConversionController final : public QObject {
  public:
   explicit ConversionController(QObject* parent = nullptr);
 
-  bool isRunning() const;
-  void start(const QStringList& inputFiles, const QString& outputDirectory,
+  bool IsRunning() const;
+  void Start(const QStringList& input_files, const QString& output_directory,
              const ConversionOptions& options);
-  void cancel();
+  void Cancel();
 
  signals:
-  void batchStarted(int totalFiles);
-  void fileStarted(const QString& inputPath, int current, int total);
-  void fileLoadProgress(int percent);
-  void fileFinished(const QString& inputPath, const QString& outputPath,
+  void BatchStarted(int total_files);
+  void FileStarted(const QString& input_path, int current, int total);
+  void FileLoadProgress(int percent);
+  void FileFinished(const QString& input_path, const QString& output_path,
                     bool success, const QString& message);
-  void overallProgress(int completed, int total);
-  void logMessage(const QString& message);
-  void batchFinished(int succeeded, int failed, int skipped);
+  void OverallProgress(int completed, int total);
+  void LogMessage(const QString& message);
+  void BatchFinished(int succeeded, int failed, int skipped);
 
  private:
-  void processNext();
-  void handleConversionCompleted(const ConversionJob& job, bool success,
-                                 const QString& errorMessage);
-  void finishBatch();
+  void ProcessNext();
+  void HandleConversionCompleted(const ConversionJob& job, bool success,
+                                 const QString& error_message);
+  void FinishBatch();
 
   HtmlToPdfConverter* converter_{nullptr};
   QList<ConversionJob> jobs_;
   ConversionOptions options_;
-  int currentIndex_{0};
+  int current_index_{0};
   int succeeded_{0};
   int failed_{0};
   int skipped_{0};
   bool running_{false};
-  bool cancelRequested_{false};
+  bool cancel_requested_{false};
 };
 
 }  // namespace quteconvert

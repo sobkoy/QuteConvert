@@ -12,138 +12,138 @@ namespace quteconvert {
 
 ConversionController::ConversionController(QObject* parent)
     : QObject(parent), converter_(new HtmlToPdfConverter(this)) {
-  connect(converter_, &HtmlToPdfConverter::loadProgress, this,
-          &ConversionController::fileLoadProgress);
-  connect(converter_, &HtmlToPdfConverter::completed, this,
-          &ConversionController::handleConversionCompleted);
+  connect(converter_, &HtmlToPdfConverter::LoadProgress, this,
+          &ConversionController::FileLoadProgress);
+  connect(converter_, &HtmlToPdfConverter::Completed, this,
+          &ConversionController::HandleConversionCompleted);
 }
 
-bool ConversionController::isRunning() const { return running_; }
+bool ConversionController::IsRunning() const { return running_; }
 
-void ConversionController::start(const QStringList& inputFiles,
-                                 const QString& outputDirectory,
+void ConversionController::Start(const QStringList& input_files,
+                                 const QString& output_directory,
                                  const ConversionOptions& options) {
   if (running_) {
-    emit logMessage(QStringLiteral("A conversion batch is already running."));
+    emit LogMessage(QStringLiteral("A conversion batch is already running."));
     return;
   }
-  if (inputFiles.isEmpty()) {
-    emit logMessage(QStringLiteral("No HTML files were selected."));
-    emit batchFinished(0, 0, 0);
+  if (input_files.isEmpty()) {
+    emit LogMessage(QStringLiteral("No HTML files were selected."));
+    emit BatchFinished(0, 0, 0);
     return;
   }
-  if (!QDir().mkpath(outputDirectory)) {
-    emit logMessage(QStringLiteral("Could not create output directory: %1")
-                        .arg(outputDirectory));
-    emit batchFinished(0, inputFiles.size(), 0);
+  if (!QDir().mkpath(output_directory)) {
+    emit LogMessage(QStringLiteral("Could not create output directory: %1")
+                        .arg(output_directory));
+    emit BatchFinished(0, input_files.size(), 0);
     return;
   }
 
   jobs_.clear();
-  QSet<QString> reservedOutputPaths;
-  for (const QString& inputPath : inputFiles) {
-    QString outputPath =
-        QFileInfo(FileDiscovery::outputPathFor(inputPath, outputDirectory))
+  QSet<QString> reserved_output_paths;
+  for (const QString& input_path : input_files) {
+    QString output_path =
+        QFileInfo(FileDiscovery::OutputPathFor(input_path, output_directory))
             .absoluteFilePath();
 
-    if (options.existingFilePolicy == ExistingFilePolicy::AddSuffix ||
-        reservedOutputPaths.contains(outputPath)) {
-      outputPath =
-          FileDiscovery::uniqueOutputPath(outputPath, reservedOutputPaths);
+    if (options.existing_file_policy == ExistingFilePolicy::kAddSuffix ||
+        reserved_output_paths.contains(output_path)) {
+      output_path =
+          FileDiscovery::UniqueOutputPath(output_path, reserved_output_paths);
     }
-    reservedOutputPaths.insert(outputPath);
-    jobs_.append({inputPath, outputPath});
+    reserved_output_paths.insert(output_path);
+    jobs_.append({input_path, output_path});
   }
 
   options_ = options;
-  currentIndex_ = 0;
+  current_index_ = 0;
   succeeded_ = 0;
   failed_ = 0;
   skipped_ = 0;
-  cancelRequested_ = false;
+  cancel_requested_ = false;
   running_ = true;
 
-  emit batchStarted(jobs_.size());
-  emit overallProgress(0, jobs_.size());
-  QTimer::singleShot(0, this, &ConversionController::processNext);
+  emit BatchStarted(jobs_.size());
+  emit OverallProgress(0, jobs_.size());
+  QTimer::singleShot(0, this, &ConversionController::ProcessNext);
 }
 
-void ConversionController::cancel() {
+void ConversionController::Cancel() {
   if (!running_) {
     return;
   }
-  cancelRequested_ = true;
-  emit logMessage(
+  cancel_requested_ = true;
+  emit LogMessage(
       QStringLiteral("Cancelling after the active operation stops..."));
-  if (converter_->isBusy()) {
-    converter_->cancel();
+  if (converter_->IsBusy()) {
+    converter_->Cancel();
   } else {
-    finishBatch();
+    FinishBatch();
   }
 }
 
-void ConversionController::processNext() {
+void ConversionController::ProcessNext() {
   if (!running_) {
     return;
   }
-  if (cancelRequested_ || currentIndex_ >= jobs_.size()) {
-    finishBatch();
+  if (cancel_requested_ || current_index_ >= jobs_.size()) {
+    FinishBatch();
     return;
   }
 
-  const ConversionJob& job = jobs_.at(currentIndex_);
-  if (options_.existingFilePolicy == ExistingFilePolicy::Skip &&
-      QFileInfo::exists(job.outputPath)) {
+  const ConversionJob& job = jobs_.at(current_index_);
+  if (options_.existing_file_policy == ExistingFilePolicy::kSkip &&
+      QFileInfo::exists(job.output_path)) {
     ++skipped_;
-    ++currentIndex_;
+    ++current_index_;
     const QString message =
-        QStringLiteral("Skipped existing file: %1").arg(job.outputPath);
-    emit logMessage(message);
-    emit fileFinished(job.inputPath, job.outputPath, false, message);
-    emit overallProgress(currentIndex_, jobs_.size());
-    QTimer::singleShot(0, this, &ConversionController::processNext);
+        QStringLiteral("Skipped existing file: %1").arg(job.output_path);
+    emit LogMessage(message);
+    emit FileFinished(job.input_path, job.output_path, false, message);
+    emit OverallProgress(current_index_, jobs_.size());
+    QTimer::singleShot(0, this, &ConversionController::ProcessNext);
     return;
   }
 
-  emit fileStarted(job.inputPath, currentIndex_ + 1, jobs_.size());
-  emit logMessage(QStringLiteral("Converting %1").arg(job.inputPath));
-  converter_->convert(job, options_);
+  emit FileStarted(job.input_path, current_index_ + 1, jobs_.size());
+  emit LogMessage(QStringLiteral("Converting %1").arg(job.input_path));
+  converter_->Convert(job, options_);
 }
 
-void ConversionController::handleConversionCompleted(
-    const ConversionJob& job, bool success, const QString& errorMessage) {
+void ConversionController::HandleConversionCompleted(
+    const ConversionJob& job, bool success, const QString& error_message) {
   if (!running_) {
     return;
   }
 
-  if (cancelRequested_) {
-    emit logMessage(QStringLiteral("Batch cancelled."));
-    finishBatch();
+  if (cancel_requested_) {
+    emit LogMessage(QStringLiteral("Batch cancelled."));
+    FinishBatch();
     return;
   }
 
   if (success) {
     ++succeeded_;
-    emit logMessage(QStringLiteral("Created %1").arg(job.outputPath));
+    emit LogMessage(QStringLiteral("Created %1").arg(job.output_path));
   } else {
     ++failed_;
-    emit logMessage(
-        QStringLiteral("Failed %1: %2").arg(job.inputPath, errorMessage));
+    emit LogMessage(
+        QStringLiteral("Failed %1: %2").arg(job.input_path, error_message));
   }
-  emit fileFinished(job.inputPath, job.outputPath, success, errorMessage);
+  emit FileFinished(job.input_path, job.output_path, success, error_message);
 
-  ++currentIndex_;
-  emit overallProgress(currentIndex_, jobs_.size());
-  QTimer::singleShot(0, this, &ConversionController::processNext);
+  ++current_index_;
+  emit OverallProgress(current_index_, jobs_.size());
+  QTimer::singleShot(0, this, &ConversionController::ProcessNext);
 }
 
-void ConversionController::finishBatch() {
+void ConversionController::FinishBatch() {
   if (!running_) {
     return;
   }
   running_ = false;
   jobs_.clear();
-  emit batchFinished(succeeded_, failed_, skipped_);
+  emit BatchFinished(succeeded_, failed_, skipped_);
 }
 
 }  // namespace quteconvert

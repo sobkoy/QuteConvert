@@ -7,21 +7,21 @@
 
 namespace quteconvert {
 
-enum class ExistingFilePolicy { Skip, Overwrite, AddSuffix };
+enum class ExistingFilePolicy { kSkip, kOverwrite, kAddSuffix };
 
 struct ConversionOptions {
-  QPageSize pageSize{QPageSize::A4};
+  QPageSize page_size{QPageSize::A4};
   QPageLayout::Orientation orientation{QPageLayout::Portrait};
-  QMarginsF marginsMm{10.0, 10.0, 10.0, 10.0};
-  int loadTimeoutMs{120000};
-  int settleDelayMs{1000};
-  bool allowRemoteResources{false};
-  ExistingFilePolicy existingFilePolicy{ExistingFilePolicy::Skip};
+  QMarginsF margins_mm{10.0, 10.0, 10.0, 10.0};
+  int load_timeout_ms{120000};
+  int settle_delay_ms{1000};
+  bool allow_remote_resources{false};
+  ExistingFilePolicy existing_file_policy{ExistingFilePolicy::kSkip};
 };
 
 struct ConversionJob {
-  QString inputPath;
-  QString outputPath;
+  QString input_path;
+  QString output_path;
 };
 
 }  // namespace quteconvert

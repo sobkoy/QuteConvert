@@ -7,13 +7,13 @@
 
 namespace quteconvert {
 
-QStringList FileDiscovery::findHtmlFiles(const QString& directoryPath,
-                                         QString* errorMessage) {
-  const QDir directory(directoryPath);
+QStringList FileDiscovery::FindHtmlFiles(const QString& directory_path,
+                                         QString* error_message) {
+  const QDir directory(directory_path);
   if (!directory.exists()) {
-    if (errorMessage) {
-      *errorMessage = QStringLiteral("Input directory does not exist: %1")
-                          .arg(directoryPath);
+    if (error_message) {
+      *error_message = QStringLiteral("Input directory does not exist: %1")
+                           .arg(directory_path);
     }
     return {};
   }
@@ -37,37 +37,37 @@ QStringList FileDiscovery::findHtmlFiles(const QString& directoryPath,
                                       QFileInfo(right).fileName()) < 0;
             });
 
-  if (errorMessage) {
-    errorMessage->clear();
+  if (error_message) {
+    error_message->clear();
   }
   return files;
 }
 
-QString FileDiscovery::outputPathFor(const QString& inputPath,
-                                     const QString& outputDirectory) {
-  const QFileInfo inputInfo(inputPath);
-  return QDir(outputDirectory)
-      .filePath(inputInfo.completeBaseName() + QStringLiteral(".pdf"));
+QString FileDiscovery::OutputPathFor(const QString& input_path,
+                                     const QString& output_directory) {
+  const QFileInfo input_info(input_path);
+  return QDir(output_directory)
+      .filePath(input_info.completeBaseName() + QStringLiteral(".pdf"));
 }
 
-QString FileDiscovery::uniqueOutputPath(const QString& desiredPath,
-                                        const QSet<QString>& reservedPaths) {
-  const QFileInfo desiredInfo(desiredPath);
-  const QString normalizedDesired =
-      QDir::cleanPath(desiredInfo.absoluteFilePath());
-  if (!QFileInfo::exists(normalizedDesired) &&
-      !reservedPaths.contains(normalizedDesired)) {
-    return normalizedDesired;
+QString FileDiscovery::UniqueOutputPath(const QString& desired_path,
+                                        const QSet<QString>& reserved_paths) {
+  const QFileInfo desired_info(desired_path);
+  const QString normalized_desired =
+      QDir::cleanPath(desired_info.absoluteFilePath());
+  if (!QFileInfo::exists(normalized_desired) &&
+      !reserved_paths.contains(normalized_desired)) {
+    return normalized_desired;
   }
 
-  const QDir directory = desiredInfo.absoluteDir();
-  const QString baseName = desiredInfo.completeBaseName();
-  const QString suffix = desiredInfo.suffix();
+  const QDir directory = desired_info.absoluteDir();
+  const QString base_name = desired_info.completeBaseName();
+  const QString suffix = desired_info.suffix();
   for (int number = 2;; ++number) {
-    const QString fileName =
-        QStringLiteral("%1 (%2).%3").arg(baseName).arg(number).arg(suffix);
-    const QString candidate = QDir::cleanPath(directory.filePath(fileName));
-    if (!QFileInfo::exists(candidate) && !reservedPaths.contains(candidate)) {
+    const QString file_name =
+        QStringLiteral("%1 (%2).%3").arg(base_name).arg(number).arg(suffix);
+    const QString candidate = QDir::cleanPath(directory.filePath(file_name));
+    if (!QFileInfo::exists(candidate) && !reserved_paths.contains(candidate)) {
       return candidate;
     }
   }

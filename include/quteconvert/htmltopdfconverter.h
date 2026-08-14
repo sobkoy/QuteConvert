@@ -16,34 +16,34 @@ class HtmlToPdfConverter final : public QObject {
  public:
   explicit HtmlToPdfConverter(QObject* parent = nullptr);
 
-  bool isBusy() const;
-  void convert(const ConversionJob& job, const ConversionOptions& options);
-  void cancel();
+  bool IsBusy() const;
+  void Convert(const ConversionJob& job, const ConversionOptions& options);
+  void Cancel();
 
  signals:
-  void loadProgress(int percent);
-  void completed(const quteconvert::ConversionJob& job, bool success,
-                 const QString& errorMessage);
+  void LoadProgress(int percent);
+  void Completed(const quteconvert::ConversionJob& job, bool success,
+                 const QString& error_message);
 
  private:
-  enum class State { Idle, Loading, WaitingForResources, Printing };
+  enum class State { kIdle, kLoading, kWaitingForResources, kPrinting };
 
-  void handleLoadFinished(bool success);
-  void pollDocumentReadiness();
-  void beginPrinting();
-  void handlePdfPrintingFinished(const QString& filePath, bool success);
-  void fail(const QString& message);
-  void finish(bool success, const QString& message = {});
-  QString temporaryPdfPath() const;
+  void HandleLoadFinished(bool success);
+  void PollDocumentReadiness();
+  void BeginPrinting();
+  void HandlePdfPrintingFinished(const QString& file_path, bool success);
+  void Fail(const QString& message);
+  void Finish(bool success, const QString& message = {});
+  QString TemporaryPdfPath() const;
 
   QWebEngineProfile* profile_{nullptr};
   QWebEnginePage* page_{nullptr};
-  QTimer timeoutTimer_;
-  QTimer readinessTimer_;
-  QTimer settleTimer_;
-  ConversionJob currentJob_;
-  ConversionOptions currentOptions_;
-  State state_{State::Idle};
+  QTimer timeout_timer_;
+  QTimer readiness_timer_;
+  QTimer settle_timer_;
+  ConversionJob current_job_;
+  ConversionOptions current_options_;
+  State state_{State::kIdle};
 };
 
 }  // namespace quteconvert

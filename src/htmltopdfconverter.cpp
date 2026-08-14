@@ -14,7 +14,7 @@ namespace quteconvert {
 
 namespace {
 
-constexpr auto readinessScript = R"JS(
+constexpr auto kReadinessScript = R"JS(
 (() => {
     for (const image of document.images) {
         image.loading = 'eager';
@@ -31,42 +31,42 @@ HtmlToPdfConverter::HtmlToPdfConverter(QObject* parent)
     : QObject(parent),
       profile_(new QWebEngineProfile(this)),
       page_(new QWebEnginePage(profile_, this)) {
-  timeoutTimer_.setSingleShot(true);
-  readinessTimer_.setInterval(250);
-  settleTimer_.setSingleShot(true);
+  timeout_timer_.setSingleShot(true);
+  readiness_timer_.setInterval(250);
+  settle_timer_.setSingleShot(true);
 
   connect(page_, &QWebEnginePage::loadProgress, this,
-          &HtmlToPdfConverter::loadProgress);
+          &HtmlToPdfConverter::LoadProgress);
   connect(page_, &QWebEnginePage::loadFinished, this,
-          &HtmlToPdfConverter::handleLoadFinished);
+          &HtmlToPdfConverter::HandleLoadFinished);
   connect(page_, &QWebEnginePage::pdfPrintingFinished, this,
-          &HtmlToPdfConverter::handlePdfPrintingFinished);
-  connect(&readinessTimer_, &QTimer::timeout, this,
-          &HtmlToPdfConverter::pollDocumentReadiness);
-  connect(&settleTimer_, &QTimer::timeout, this,
-          &HtmlToPdfConverter::beginPrinting);
-  connect(&timeoutTimer_, &QTimer::timeout, this, [this] {
+          &HtmlToPdfConverter::HandlePdfPrintingFinished);
+  connect(&readiness_timer_, &QTimer::timeout, this,
+          &HtmlToPdfConverter::PollDocumentReadiness);
+  connect(&settle_timer_, &QTimer::timeout, this,
+          &HtmlToPdfConverter::BeginPrinting);
+  connect(&timeout_timer_, &QTimer::timeout, this, [this] {
     const QString activity =
-        state_ == State::Printing
+        state_ == State::kPrinting
             ? QStringLiteral("printing the PDF")
             : QStringLiteral("loading the document and its resources");
-    fail(QStringLiteral("Timed out while %1.").arg(activity));
+    Fail(QStringLiteral("Timed out while %1.").arg(activity));
   });
 }
 
-bool HtmlToPdfConverter::isBusy() const { return state_ != State::Idle; }
+bool HtmlToPdfConverter::IsBusy() const { return state_ != State::kIdle; }
 
-void HtmlToPdfConverter::convert(const ConversionJob& job,
+void HtmlToPdfConverter::Convert(const ConversionJob& job,
                                  const ConversionOptions& options) {
-  if (isBusy()) {
-    emit completed(job, false,
+  if (IsBusy()) {
+    emit Completed(job, false,
                    QStringLiteral("The converter is already busy."));
     return;
   }
 
-  currentJob_ = job;
-  currentOptions_ = options;
-  state_ = State::Loading;
+  current_job_ = job;
+  current_options_ = options;
+  state_ = State::kLoading;
 
   auto* settings = page_->settings();
   settings->setAttribute(QWebEngineSettings::JavascriptEnabled, true);
@@ -74,118 +74,120 @@ void HtmlToPdfConverter::convert(const ConversionJob& job,
   settings->setAttribute(QWebEngineSettings::LocalContentCanAccessFileUrls,
                          true);
   settings->setAttribute(QWebEngineSettings::LocalContentCanAccessRemoteUrls,
-                         options.allowRemoteResources);
+                         options.allow_remote_resources);
   settings->setAttribute(QWebEngineSettings::JavascriptCanOpenWindows, false);
 
-  timeoutTimer_.start(options.loadTimeoutMs);
-  page_->load(QUrl::fromLocalFile(QFileInfo(job.inputPath).absoluteFilePath()));
+  timeout_timer_.start(options.load_timeout_ms);
+  page_->load(
+      QUrl::fromLocalFile(QFileInfo(job.input_path).absoluteFilePath()));
 }
 
-void HtmlToPdfConverter::cancel() {
-  if (!isBusy()) {
+void HtmlToPdfConverter::Cancel() {
+  if (!IsBusy()) {
     return;
   }
   page_->triggerAction(QWebEnginePage::Stop);
-  finish(false, QStringLiteral("Conversion cancelled."));
+  Finish(false, QStringLiteral("Conversion cancelled."));
 }
 
-void HtmlToPdfConverter::handleLoadFinished(bool success) {
-  if (state_ != State::Loading) {
+void HtmlToPdfConverter::HandleLoadFinished(bool success) {
+  if (state_ != State::kLoading) {
     return;
   }
   if (!success) {
-    fail(QStringLiteral("Qt WebEngine could not load the HTML document."));
+    Fail(QStringLiteral("Qt WebEngine could not load the HTML document."));
     return;
   }
 
-  state_ = State::WaitingForResources;
-  readinessTimer_.start();
-  pollDocumentReadiness();
+  state_ = State::kWaitingForResources;
+  readiness_timer_.start();
+  PollDocumentReadiness();
 }
 
-void HtmlToPdfConverter::pollDocumentReadiness() {
-  if (state_ != State::WaitingForResources) {
+void HtmlToPdfConverter::PollDocumentReadiness() {
+  if (state_ != State::kWaitingForResources) {
     return;
   }
 
   page_->runJavaScript(
-      QString::fromUtf8(readinessScript), [this](const QVariant& result) {
-        if (state_ != State::WaitingForResources || !result.toBool()) {
+      QString::fromUtf8(kReadinessScript), [this](const QVariant& result) {
+        if (state_ != State::kWaitingForResources || !result.toBool()) {
           return;
         }
-        readinessTimer_.stop();
-        settleTimer_.start(currentOptions_.settleDelayMs);
+        readiness_timer_.stop();
+        settle_timer_.start(current_options_.settle_delay_ms);
       });
 }
 
-void HtmlToPdfConverter::beginPrinting() {
-  if (state_ != State::WaitingForResources) {
+void HtmlToPdfConverter::BeginPrinting() {
+  if (state_ != State::kWaitingForResources) {
     return;
   }
 
-  state_ = State::Printing;
-  timeoutTimer_.start(currentOptions_.loadTimeoutMs);
+  state_ = State::kPrinting;
+  timeout_timer_.start(current_options_.load_timeout_ms);
 
-  const QString temporaryPath = temporaryPdfPath();
-  QFile::remove(temporaryPath);
-  const QPageLayout layout(currentOptions_.pageSize,
-                           currentOptions_.orientation,
-                           currentOptions_.marginsMm, QPageLayout::Millimeter);
-  page_->printToPdf(temporaryPath, layout);
+  const QString temporary_path = TemporaryPdfPath();
+  QFile::remove(temporary_path);
+  const QPageLayout layout(
+      current_options_.page_size, current_options_.orientation,
+      current_options_.margins_mm, QPageLayout::Millimeter);
+  page_->printToPdf(temporary_path, layout);
 }
 
-void HtmlToPdfConverter::handlePdfPrintingFinished(const QString& filePath,
+void HtmlToPdfConverter::HandlePdfPrintingFinished(const QString& file_path,
                                                    bool success) {
-  if (state_ != State::Printing || filePath != temporaryPdfPath()) {
+  if (state_ != State::kPrinting || file_path != TemporaryPdfPath()) {
     return;
   }
   if (!success) {
-    fail(QStringLiteral("Qt WebEngine failed to create the PDF."));
+    Fail(QStringLiteral("Qt WebEngine failed to create the PDF."));
     return;
   }
 
-  if (QFileInfo::exists(currentJob_.outputPath)) {
-    if (currentOptions_.existingFilePolicy != ExistingFilePolicy::Overwrite) {
-      fail(QStringLiteral(
+  if (QFileInfo::exists(current_job_.output_path)) {
+    if (current_options_.existing_file_policy !=
+        ExistingFilePolicy::kOverwrite) {
+      Fail(QStringLiteral(
           "The output file appeared while conversion was running."));
       return;
     }
-    if (!QFile::remove(currentJob_.outputPath)) {
-      fail(QStringLiteral("Could not replace the existing output file."));
+    if (!QFile::remove(current_job_.output_path)) {
+      Fail(QStringLiteral("Could not replace the existing output file."));
       return;
     }
   }
 
-  if (!QFile::rename(filePath, currentJob_.outputPath)) {
-    fail(QStringLiteral(
+  if (!QFile::rename(file_path, current_job_.output_path)) {
+    Fail(QStringLiteral(
         "Could not move the completed PDF to its final location."));
     return;
   }
-  finish(true);
+  Finish(true);
 }
 
-void HtmlToPdfConverter::fail(const QString& message) {
+void HtmlToPdfConverter::Fail(const QString& message) {
   page_->triggerAction(QWebEnginePage::Stop);
-  QFile::remove(temporaryPdfPath());
-  finish(false, message);
+  QFile::remove(TemporaryPdfPath());
+  Finish(false, message);
 }
 
-void HtmlToPdfConverter::finish(bool success, const QString& message) {
-  timeoutTimer_.stop();
-  readinessTimer_.stop();
-  settleTimer_.stop();
+void HtmlToPdfConverter::Finish(bool success, const QString& message) {
+  timeout_timer_.stop();
+  readiness_timer_.stop();
+  settle_timer_.stop();
 
-  const ConversionJob finishedJob = currentJob_;
-  state_ = State::Idle;
-  currentJob_ = {};
-  emit completed(finishedJob, success, message);
+  const ConversionJob finished_job = current_job_;
+  state_ = State::kIdle;
+  current_job_ = {};
+  emit Completed(finished_job, success, message);
 }
 
-QString HtmlToPdfConverter::temporaryPdfPath() const {
-  const QFileInfo outputInfo(currentJob_.outputPath);
-  return outputInfo.absoluteDir().filePath(
+QString HtmlToPdfConverter::TemporaryPdfPath() const {
+  const QFileInfo output_info(current_job_.output_path);
+  return output_info.absoluteDir().filePath(
       QStringLiteral(".%1.quteconvert-part.pdf")
-          .arg(outputInfo.completeBaseName()));
+          .arg(output_info.completeBaseName()));
 }
 
 }  // namespace quteconvert
