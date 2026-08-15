@@ -10,13 +10,7 @@
 
 namespace quteconvert {
 
-ConversionController::ConversionController(QObject* parent)
-    : QObject(parent), converter_(new HtmlToPdfConverter(this)) {
-  connect(converter_, &HtmlToPdfConverter::LoadProgress, this,
-          &ConversionController::FileLoadProgress);
-  connect(converter_, &HtmlToPdfConverter::Completed, this,
-          &ConversionController::HandleConversionCompleted);
-}
+ConversionController::ConversionController(QObject* parent) : QObject(parent) {}
 
 bool ConversionController::IsRunning() const { return running_; }
 
@@ -60,8 +54,15 @@ void ConversionController::Start(const QStringList& input_files,
   succeeded_ = 0;
   failed_ = 0;
   skipped_ = 0;
+  finishing_ = false;
   cancel_requested_ = false;
   running_ = true;
+
+  converter_ = new HtmlToPdfConverter(this);
+  connect(converter_, &HtmlToPdfConverter::LoadProgress, this,
+          &ConversionController::FileLoadProgress);
+  connect(converter_, &HtmlToPdfConverter::Completed, this,
+          &ConversionController::HandleConversionCompleted);
 
   emit BatchStarted(jobs_.size());
   emit OverallProgress(0, jobs_.size());
@@ -69,13 +70,13 @@ void ConversionController::Start(const QStringList& input_files,
 }
 
 void ConversionController::Cancel() {
-  if (!running_) {
+  if (!running_ || finishing_) {
     return;
   }
   cancel_requested_ = true;
   emit LogMessage(
       QStringLiteral("Cancelling after the active operation stops..."));
-  if (converter_->IsBusy()) {
+  if (converter_ && converter_->IsBusy()) {
     converter_->Cancel();
   } else {
     FinishBatch();
@@ -83,7 +84,7 @@ void ConversionController::Cancel() {
 }
 
 void ConversionController::ProcessNext() {
-  if (!running_) {
+  if (!running_ || finishing_) {
     return;
   }
   if (cancel_requested_ || current_index_ >= jobs_.size()) {
@@ -112,7 +113,7 @@ void ConversionController::ProcessNext() {
 
 void ConversionController::HandleConversionCompleted(
     const ConversionJob& job, bool success, const QString& error_message) {
-  if (!running_) {
+  if (!running_ || finishing_) {
     return;
   }
 
@@ -138,12 +139,34 @@ void ConversionController::HandleConversionCompleted(
 }
 
 void ConversionController::FinishBatch() {
-  if (!running_) {
+  if (!running_ || finishing_) {
     return;
   }
-  running_ = false;
+  finishing_ = true;
   jobs_.clear();
-  emit BatchFinished(succeeded_, failed_, skipped_);
+
+  const int succeeded = succeeded_;
+  const int failed = failed_;
+  const int skipped = skipped_;
+  HtmlToPdfConverter* finished_converter = converter_;
+  converter_ = nullptr;
+
+  if (!finished_converter) {
+    finishing_ = false;
+    running_ = false;
+    emit BatchFinished(succeeded, failed, skipped);
+    return;
+  }
+
+  connect(
+      finished_converter, &QObject::destroyed, this,
+      [this, succeeded, failed, skipped] {
+        finishing_ = false;
+        running_ = false;
+        emit BatchFinished(succeeded, failed, skipped);
+      },
+      Qt::SingleShotConnection);
+  finished_converter->deleteLater();
 }
 
 }  // namespace quteconvert

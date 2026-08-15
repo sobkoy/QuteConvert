@@ -25,26 +25,23 @@ constexpr auto kReadinessScript = R"JS(
 })()
 )JS";
 
+constexpr int kRendererShutdownTimeoutMs = 2000;
+
 }  // namespace
 
 HtmlToPdfConverter::HtmlToPdfConverter(QObject* parent)
-    : QObject(parent),
-      profile_(new QWebEngineProfile(this)),
-      page_(new QWebEnginePage(profile_, this)) {
+    : QObject(parent), profile_(new QWebEngineProfile(this)) {
   timeout_timer_.setSingleShot(true);
   readiness_timer_.setInterval(250);
   settle_timer_.setSingleShot(true);
+  cleanup_timer_.setSingleShot(true);
 
-  connect(page_, &QWebEnginePage::loadProgress, this,
-          &HtmlToPdfConverter::LoadProgress);
-  connect(page_, &QWebEnginePage::loadFinished, this,
-          &HtmlToPdfConverter::HandleLoadFinished);
-  connect(page_, &QWebEnginePage::pdfPrintingFinished, this,
-          &HtmlToPdfConverter::HandlePdfPrintingFinished);
   connect(&readiness_timer_, &QTimer::timeout, this,
           &HtmlToPdfConverter::PollDocumentReadiness);
   connect(&settle_timer_, &QTimer::timeout, this,
           &HtmlToPdfConverter::BeginPrinting);
+  connect(&cleanup_timer_, &QTimer::timeout, this,
+          &HtmlToPdfConverter::DeletePage);
   connect(&timeout_timer_, &QTimer::timeout, this, [this] {
     const QString activity =
         state_ == State::kPrinting
@@ -52,6 +49,15 @@ HtmlToPdfConverter::HtmlToPdfConverter(QObject* parent)
             : QStringLiteral("loading the document and its resources");
     Fail(QStringLiteral("Timed out while %1.").arg(activity));
   });
+}
+
+HtmlToPdfConverter::~HtmlToPdfConverter() {
+  if (page_) {
+    disconnect(page_, nullptr, this, nullptr);
+    delete page_.data();
+  }
+  delete profile_;
+  profile_ = nullptr;
 }
 
 bool HtmlToPdfConverter::IsBusy() const { return state_ != State::kIdle; }
@@ -67,6 +73,7 @@ void HtmlToPdfConverter::Convert(const ConversionJob& job,
   current_job_ = job;
   current_options_ = options;
   state_ = State::kLoading;
+  CreatePage();
 
   auto* settings = page_->settings();
   settings->setAttribute(QWebEngineSettings::JavascriptEnabled, true);
@@ -83,11 +90,29 @@ void HtmlToPdfConverter::Convert(const ConversionJob& job,
 }
 
 void HtmlToPdfConverter::Cancel() {
-  if (!IsBusy()) {
+  if (!IsBusy() || state_ == State::kCleaningUp) {
     return;
   }
   page_->triggerAction(QWebEnginePage::Stop);
   Finish(false, QStringLiteral("Conversion cancelled."));
+}
+
+void HtmlToPdfConverter::CreatePage() {
+  Q_ASSERT(!page_);
+  page_ = new QWebEnginePage(profile_, this);
+  connect(page_, &QWebEnginePage::loadProgress, this,
+          &HtmlToPdfConverter::LoadProgress);
+  connect(page_, &QWebEnginePage::loadFinished, this,
+          &HtmlToPdfConverter::HandleLoadFinished);
+  connect(page_, &QWebEnginePage::pdfPrintingFinished, this,
+          &HtmlToPdfConverter::HandlePdfPrintingFinished);
+}
+
+void HtmlToPdfConverter::DeletePage() {
+  cleanup_timer_.stop();
+  if (state_ == State::kCleaningUp && page_) {
+    page_->deleteLater();
+  }
 }
 
 void HtmlToPdfConverter::HandleLoadFinished(bool success) {
@@ -167,20 +192,54 @@ void HtmlToPdfConverter::HandlePdfPrintingFinished(const QString& file_path,
 }
 
 void HtmlToPdfConverter::Fail(const QString& message) {
-  page_->triggerAction(QWebEnginePage::Stop);
+  if (page_) {
+    page_->triggerAction(QWebEnginePage::Stop);
+  }
   QFile::remove(TemporaryPdfPath());
   Finish(false, message);
 }
 
 void HtmlToPdfConverter::Finish(bool success, const QString& message) {
+  if (state_ == State::kIdle || state_ == State::kCleaningUp) {
+    return;
+  }
+
   timeout_timer_.stop();
   readiness_timer_.stop();
   settle_timer_.stop();
+  cleanup_timer_.stop();
 
   const ConversionJob finished_job = current_job_;
-  state_ = State::kIdle;
+  state_ = State::kCleaningUp;
   current_job_ = {};
-  emit Completed(finished_job, success, message);
+
+  QWebEnginePage* finished_page = page_.data();
+  if (!finished_page) {
+    state_ = State::kIdle;
+    emit Completed(finished_job, success, message);
+    return;
+  }
+
+  connect(
+      finished_page, &QObject::destroyed, this,
+      [this, finished_job, success, message] {
+        state_ = State::kIdle;
+        emit Completed(finished_job, success, message);
+      },
+      Qt::SingleShotConnection);
+  connect(finished_page, &QWebEnginePage::renderProcessPidChanged, this,
+          [this, finished_page](qint64 process_id) {
+            if (process_id == 0 && page_ == finished_page) {
+              DeletePage();
+            }
+          });
+
+  cleanup_timer_.start(kRendererShutdownTimeoutMs);
+  finished_page->triggerAction(QWebEnginePage::Stop);
+  finished_page->setLifecycleState(QWebEnginePage::LifecycleState::Discarded);
+  if (finished_page->renderProcessPid() == 0) {
+    DeletePage();
+  }
 }
 
 QString HtmlToPdfConverter::TemporaryPdfPath() const {

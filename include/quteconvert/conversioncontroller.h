@@ -44,6 +44,7 @@ class ConversionController final : public QObject {
   int failed_{0};
   int skipped_{0};
   bool running_{false};
+  bool finishing_{false};
   bool cancel_requested_{false};
 };
 

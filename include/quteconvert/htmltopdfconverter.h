@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QPointer>
 #include <QTimer>
 
 #include "quteconvert/conversiontypes.h"
@@ -15,6 +16,7 @@ class HtmlToPdfConverter final : public QObject {
 
  public:
   explicit HtmlToPdfConverter(QObject* parent = nullptr);
+  ~HtmlToPdfConverter() override;
 
   bool IsBusy() const;
   void Convert(const ConversionJob& job, const ConversionOptions& options);
@@ -26,8 +28,16 @@ class HtmlToPdfConverter final : public QObject {
                  const QString& error_message);
 
  private:
-  enum class State { kIdle, kLoading, kWaitingForResources, kPrinting };
+  enum class State {
+    kIdle,
+    kLoading,
+    kWaitingForResources,
+    kPrinting,
+    kCleaningUp
+  };
 
+  void CreatePage();
+  void DeletePage();
   void HandleLoadFinished(bool success);
   void PollDocumentReadiness();
   void BeginPrinting();
@@ -37,10 +47,11 @@ class HtmlToPdfConverter final : public QObject {
   QString TemporaryPdfPath() const;
 
   QWebEngineProfile* profile_{nullptr};
-  QWebEnginePage* page_{nullptr};
+  QPointer<QWebEnginePage> page_;
   QTimer timeout_timer_;
   QTimer readiness_timer_;
   QTimer settle_timer_;
+  QTimer cleanup_timer_;
   ConversionJob current_job_;
   ConversionOptions current_options_;
   State state_{State::kIdle};
